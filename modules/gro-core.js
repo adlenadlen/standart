@@ -339,29 +339,9 @@ class UIController {
   }
 
   _createElements() {
+    // Рендерим только поиск
     const searchControls = document.getElementById('searchControls');
-    searchControls.innerHTML = this._searchControlsHTML();
-
-    const conversionControls = document.getElementById('conversionControls');
-    conversionControls.innerHTML = this._conversionControlsHTML();
-
-    this.elements = {
-      searchInput: document.getElementById('searchInput'),
-      outputList: document.getElementById('outputList'),
-      messageState: document.getElementById('messageState'),
-      nearbyPopup: document.getElementById('nearbyPopup'),
-      manualCoordX: document.getElementById('manualCoordX'),
-      manualCoordY: document.getElementById('manualCoordY'),
-      manualResultX: document.getElementById('manualResultX'),
-      manualResultY: document.getElementById('manualResultY'),
-      manualLat: document.getElementById('manualLat'),
-      manualLon: document.getElementById('manualLon'),
-      manualOpenMaps: document.getElementById('manualOpenMaps')
-    };
-  }
-
-  _searchControlsHTML() {
-    return `
+    searchControls.innerHTML = `
       <div class="control-row">
         <span class="control-label">Режим поиска:</span>
         <div class="search-mode-toggle">
@@ -385,35 +365,17 @@ class UIController {
         <button id="geolocateButton" class="b geolocate-button" title="Поиск по геолокации">📍</button>
       </div>
     `;
-  }
 
-  _conversionControlsHTML() {
-    return `
-      <div class="control-row"><span class="control-label">MSK → WGS-84:</span></div>
-      <div class="control-row">
-        <label for="manualCoordX" class="control-label">X (Север, MSK):</label>
-        <input id="manualCoordX" type="text" placeholder="Введите X" class="manual-coord-input" inputmode="decimal">
-      </div>
-      <div class="control-row">
-        <label for="manualCoordY" class="control-label">Y (Восток, MSK):</label>
-        <input id="manualCoordY" type="text" placeholder="Введите Y" class="manual-coord-input" inputmode="decimal">
-      </div>
-      <div class="control-row">
-        <span class="control-label">Результат MSK:</span>
-        <div class="conversion-result">
-          X: <span id="manualResultX">---</span>
-          Y: <span id="manualResultY">---</span>
-        </div>
-      </div>
-      <div class="control-row">
-        <span class="control-label">WGS-84:</span>
-        <div class="conversion-result">
-          lat: <span id="manualLat">---</span>
-          lon: <span id="manualLon">---</span>
-          <button id="manualOpenMaps" class="b" style="margin-left:8px;">Открыть в картах</button>
-        </div>
-      </div>
-    `;
+    // Полностью скрываем нижний калькулятор, если он есть в DOM
+    const convSection = document.querySelector('.conversion-section');
+    if (convSection) convSection.style.display = 'none';
+
+    this.elements = {
+      searchInput: document.getElementById('searchInput'),
+      outputList: document.getElementById('outputList'),
+      messageState: document.getElementById('messageState'),
+      nearbyPopup: document.getElementById('nearbyPopup')
+    };
   }
 
   _bindEvents() {
@@ -458,50 +420,6 @@ class UIController {
       const id = row.dataset.recordId;
       const rec = this.app.state.fullDatabase.find(r => r.id === id);
       if (rec) this.showPointDetails(rec);
-    });
-
-    // Ручной блок MSK→WGS
-    this._bindConversionEvents();
-  }
-
-  _bindConversionEvents() {
-    const update = () => {
-      const xStr = this.elements.manualCoordX.value.trim().replace(',', '.');
-      const yStr = this.elements.manualCoordY.value.trim().replace(',', '.');
-
-      if (!xStr || !yStr) {
-        this.elements.manualResultX.textContent = '---';
-        this.elements.manualResultY.textContent = '---';
-        this.elements.manualLat.textContent = '---';
-        this.elements.manualLon.textContent = '---';
-        return;
-      }
-
-      const x = parseFloat(xStr);
-      const y = parseFloat(yStr);
-
-      this.elements.manualResultX.textContent = this._fmt(x);
-      this.elements.manualResultY.textContent = this._fmt(y);
-
-      const w = this.app.geolocation.mskToWGS(x, y);
-      if (w && Number.isFinite(w.lat) && Number.isFinite(w.lon)) {
-        this.elements.manualLat.textContent = this._fmt(w.lat, 6);
-        this.elements.manualLon.textContent = this._fmt(w.lon, 6);
-      } else {
-        this.elements.manualLat.textContent = '---';
-        this.elements.manualLon.textContent = '---';
-      }
-    };
-
-    this.elements.manualCoordX.addEventListener('input', update);
-    this.elements.manualCoordY.addEventListener('input', update);
-
-    this.elements.manualOpenMaps.addEventListener('click', () => {
-      const lat = Number(String(this.elements.manualLat.textContent).replace(',', '.'));
-      const lon = Number(String(this.elements.manualLon.textContent).replace(',', '.'));
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      window.open(this.app.geolocation.makeGoogleMapsUrl(lat, lon), '_blank', 'noopener,noreferrer');
-      window.open(this.app.geolocation.makeYandexMapsUrl(lat, lon), '_blank', 'noopener,noreferrer');
     });
   }
 
@@ -624,11 +542,12 @@ class UIController {
       header.appendChild(subtitle);
     }
 
+    // Без приписки "MSK"
     const coordsDiv = document.createElement('div');
     coordsDiv.className = 'popup-coordinates';
     coordsDiv.innerHTML = `
-      <strong>X (MSK):</strong> ${this._fmt(f.Xraw)}<br>
-      <strong>Y (MSK):</strong> ${this._fmt(f.Yraw)}<br>
+      <strong>X (Север):</strong> ${this._fmt(f.Xraw)}<br>
+      <strong>Y (Восток):</strong> ${this._fmt(f.Yraw)}<br>
       <strong>H:</strong> ${this._fmt(f.H)}
     `;
     header.appendChild(coordsDiv);
@@ -672,10 +591,77 @@ class UIController {
       }
     }
 
-    // обработчики закрытия/назад
+    // Закрытие/назад
     const onClick = (e) => {
       if (e.target === popup || e.target.classList.contains('popup-close-btn')) this.closePopup();
       else if (e.target.classList.contains('popup-back-btn')) this.goBack();
+    };
+    popup.addEventListener('click', onClick, { once: true });
+  }
+
+  // НОВОЕ: попап геолокации (исправляет ошибку "не является функцией")
+  showNearbyLocationPopup(result /* { userCoords:{x,y}, points:[{record,distance,coords}] } */) {
+    const popup = document.getElementById('nearbyPopup');
+
+    const box = document.createElement('div');
+    box.className = 'popup-content';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'popup-close-btn';
+    closeBtn.innerHTML = '×';
+    closeBtn.title = 'Закрыть';
+    box.appendChild(closeBtn);
+
+    const header = document.createElement('div');
+    header.className = 'popup-header';
+
+    const title = document.createElement('h3');
+    title.className = 'popup-title';
+    title.textContent = 'Геолокация';
+    header.appendChild(title);
+
+    // Без приписки "MSK"
+    const coordsDiv = document.createElement('div');
+    coordsDiv.className = 'popup-coordinates';
+    coordsDiv.innerHTML = `
+      Ваше местоположение:<br>
+      <strong>X (Север):</strong> ${this._fmt(result.userCoords.x)}<br>
+      <strong>Y (Восток):</strong> ${this._fmt(result.userCoords.y)}
+    `;
+    header.appendChild(coordsDiv);
+
+    box.appendChild(header);
+
+    const nearWrap = document.createElement('div');
+    nearWrap.className = 'nearby-section';
+    nearWrap.innerHTML = `<h4 class="nearby-title">Ближайшие точки (до 300м):</h4><div class="nearby-list"></div>`;
+    box.appendChild(nearWrap);
+
+    const list = nearWrap.querySelector('.nearby-list');
+    if (!result.points.length) {
+      const nores = document.createElement('div');
+      nores.className = 'no-results';
+      nores.textContent = 'Поблизости нет точек';
+      list.appendChild(nores);
+    } else {
+      for (const item of result.points) {
+        const el = this._createRecordElement(item.record, true, item.distance);
+        el.addEventListener('click', (e) => {
+          if (e.target.classList.contains('map-link')) return;
+          this.showPointDetails(item.record);
+        });
+        list.appendChild(el);
+      }
+    }
+
+    popup.innerHTML = '';
+    popup.appendChild(box);
+    popup.style.display = 'flex';
+    this.popupHistory = [];
+
+    // закрытие
+    const onClick = (e) => {
+      if (e.target === popup || e.target.classList.contains('popup-close-btn')) this.closePopup();
     };
     popup.addEventListener('click', onClick, { once: true });
   }

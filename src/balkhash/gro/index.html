@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ГРО — Геодезическая разбивочная основа</title>
+  <meta name="description" content="Поиск по точкам Геодезической разбивочной основы (ГРО)" />
+
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/gro.css" />
+
+  <!-- Страничный скрипт, который сам подгрузит proj4 только здесь -->
+  <script type="module" src="./gro.js"></script>
+</head>
+<body>
+  <main class="page-container">
+    <nav class="breadcrumbs" aria-label="Хлебные крошки">
+      <ol>
+        <li><a href="/">Главная</a></li>
+        <li><a href="/balkhash/">Балхаш</a></li>
+        <li class="current" aria-current="page">ГРО</li>
+      </ol>
+    </nav>
+
+    <h1>Геодезическая разбивочная основа</h1>
+
+    <section class="search-section">
+      <h2>Быстрый поиск</h2>
+      <div class="controls-container" id="searchControls"></div>
+    </section>
+
+    <section class="data-container">
+      <div id="messageState" class="message-state">Загрузка данных...</div>
+      <div id="outputList" class="output-list" style="display:none"></div>
+    </section>
+
+    <!-- Попап (UI контролирует показ/скрытие) -->
+    <div id="nearbyPopup" class="popup-overlay" style="display:none"></div>
+
+    <section class="data-section">
+      <h2>Работа с данными</h2>
+      <div class="action-buttons">
+        <a id="viewSheetLink"   class="b" target="_blank" rel="noopener">Просмотр таблицы</a>
+        <a id="downloadCsvLink" class="b" target="_blank" rel="noopener">Скачать CSV</a>
+      </div>
+    </section>
+
+    <section class="conversion-section" style="display:none">
+      <h2>Перевод координат</h2>
+      <div class="controls-container" id="conversionControls"></div>
+    </section>
+  </main>
+</body>
+</html>

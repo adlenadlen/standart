@@ -1,0 +1,352 @@
+/* gro.css — стили для страниц GRO
+   Предполагается, что base.css уже подключен ранее.
+   Не используем @import; подключай этот файл отдельным <link>.
+*/
+
+/* моноширинные фрагменты */
+.conversion-result,
+.manual-coord-input,
+.popup-coordinates {
+  font-family: var(--mono-font);
+}
+
+/* панель управления */
+.controls-container {
+  background: var(--btn);
+  border-radius: 15px;
+  padding: calc(var(--space) * 2);
+  margin-block-end: calc(var(--space) * 2);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 1.5);
+  margin-block-end: calc(var(--space) * 1.5);
+}
+.control-row:last-child { margin-block-end: 0 }
+
+/* строки с выравниванием по центру */
+:where(.geolocate-button, .search-row) {
+  display: flex;
+  align-items: center;
+}
+
+/* подписи */
+.control-label {
+  min-inline-size: 140px;
+  font-weight: 500;
+  opacity: .8;
+}
+
+/* переключатели (radio-group) */
+:where(.coord-toggle, .ignore-chars-toggle, .search-mode-toggle) {
+  display: flex;
+  gap: var(--space);
+  background: var(--bg);
+  padding: calc(var(--space) * .5);
+  border-radius: 10px;
+}
+
+:where(.coord-toggle label, .ignore-chars-toggle label, .search-mode-toggle label) {
+  padding: calc(var(--space) * .5) calc(var(--space) * 1.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .2s ease;
+}
+
+input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+}
+input[type="radio"]:checked + label {
+  background: var(--btn);
+  font-weight: 600;
+}
+
+/* поиск */
+.search-row {
+  gap: var(--space);
+  inline-size: 100%;
+}
+.search-input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: calc(var(--space) * 1.2) calc(var(--space) * 2);
+  border: 0;
+  border-radius: 20px;
+  font-size: 1.1rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+:where(.manual-coord-input, .search-input):focus {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* кнопка геолокации — кругленькая */
+.geolocate-button {
+  inline-size: 45px;
+  block-size: 45px;
+  min-inline-size: 45px;
+  padding: 0;
+  font-size: 1.3rem;
+  border-radius: 50%;
+  justify-content: center;
+  flex-shrink: 0;
+
+  /* Fallback для старых браузеров: светлая тема—чёрный полупрозрачный фон */
+  background-color: rgba(0,0,0,.2);
+  color: var(--fg);
+
+  /* Современный слой, зависящий от текущего цвета текста */
+  background-color: color-mix(in srgb, currentColor 20%, transparent);
+}
+.geolocate-button:hover {
+  /* Fallback */
+  background-color: rgba(0,0,0,.3);
+  /* Современный слой */
+  background-color: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+/* контейнер данных / состояния */
+.data-container {
+  min-block-size: 150px;
+  margin-block-end: calc(var(--space) * 2);
+}
+.message-state {
+  text-align: center;
+  padding: calc(var(--space) * 4);
+  opacity: .7;
+  font-size: 1.1rem;
+}
+.message-state.error { color: #e74c3c }
+
+/* список результатов */
+.output-list {
+  max-block-size: 600px;
+  overflow-y: auto;
+  padding: var(--space);
+}
+.output-line {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 1.2);
+  padding: calc(var(--space) * 1.2);
+  margin-block-end: calc(var(--space) * .8);
+  background: var(--btn);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color .2s ease, transform .1s ease;
+  animation: .3s ease-out slideIn;
+}
+.output-line:hover {
+  background: var(--btn-hover);
+  transform: translateY(-1px);
+}
+.output-line:active { transform: translateY(0) }
+
+.point-name { font-weight: 600; flex-shrink: 0 }
+.point-info { opacity: .7; font-size: .95rem; flex: 1 }
+
+/* ссылки на карты */
+.map-links {
+  display: flex;
+  gap: calc(var(--space) * .5);
+  flex-shrink: 0;
+}
+.map-link {
+  inline-size: 32px;
+  block-size: 32px;
+  min-inline-size: 32px;
+  padding: 0;
+  font-size: .9rem;
+  font-weight: 600;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1;
+
+  /* Fallback */
+  background-color: rgba(0,0,0,.15);
+  color: var(--fg);
+  text-decoration: none;
+
+  /* Современный вариант */
+  background-color: color-mix(in srgb, currentColor 15%, transparent);
+}
+.map-link:hover {
+  /* Fallback */
+  background-color: rgba(0,0,0,.25);
+  /* Современный вариант */
+  background-color: color-mix(in srgb, currentColor 25%, transparent);
+  transform: scale(1.1);
+}
+
+/* блоки действий */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+}
+
+/* попап */
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+.popup-content {
+  background: var(--bg);
+  border-radius: 20px;
+  padding: calc(var(--space) * 3);
+  max-inline-size: 600px;
+  max-block-size: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+.popup-header,
+.popup-map-links { margin-block-end: calc(var(--space) * 2) }
+.popup-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-block-end: calc(var(--space) * .5);
+}
+.popup-subtitle {
+  font-size: 1rem;
+  opacity: .6;
+  margin-block-end: calc(var(--space) * 1.5);
+}
+:where(.nearby-title, .popup-coordinates) {
+  margin-block-end: calc(var(--space) * 1.5);
+  opacity: .8;
+}
+.popup-coordinates {
+  font-size: 1.1rem;
+  line-height: 1.8;
+}
+
+/* кнопки внутри попапа */
+.popup-map-links .map-link {
+  background: var(--btn);
+  color: var(--fg);
+}
+.popup-map-links .map-link:hover { background: var(--btn-hover) }
+
+.popup-close-btn,
+.popup-back-btn {
+  position: absolute;
+  inset-block-start: calc(var(--space) * 2);
+  inset-inline-end: calc(var(--space) * 2);
+  background: var(--btn);
+  border: 0;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 50%;
+  font-size: 2rem;
+  cursor: pointer;
+  display: flex;
+  place-content: center;
+  place-items: center;
+  transition: background-color .2s ease;
+  color: var(--fg);
+}
+.popup-back-btn {
+  inset-inline-end: calc(var(--space) * 2 + 50px);
+  font-size: 1.2rem;
+}
+:where(.popup-back-btn, .popup-close-btn):hover { background: var(--btn-hover) }
+
+/* блок “рядом” */
+.nearby-section { margin-block-start: calc(var(--space) * 3) }
+.nearby-title { font-size: 1.3rem; font-weight: 500 }
+.nearby-list .output-line { padding: calc(var(--space) * 1) }
+.nearby-distance {
+  font-weight: 600;
+  opacity: .7;
+  min-inline-size: 50px;
+  flex-shrink: 0;
+}
+
+/* пустые состояния */
+.no-results {
+  opacity: .7;
+  text-align: center;
+  padding: calc(var(--space) * 2);
+}
+
+/* ручной ввод координат */
+.manual-coord-input {
+  padding: calc(var(--space) * 1) calc(var(--space) * 1.5);
+  border: 0;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  inline-size: 200px;
+}
+
+/* числа/результаты */
+.conversion-result { font-weight: 600; font-size: 1.1rem }
+
+/* адаптация под узкие экраны */
+@media (max-width: 425px) {
+  .control-row:not(.search-row) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .control-label {
+    min-inline-size: auto;
+    margin-block-end: calc(var(--space) * .5);
+  }
+  :where(.coord-toggle, .ignore-chars-toggle, .search-mode-toggle) {
+    inline-size: 100%;
+    justify-content: stretch;
+  }
+  :where(.coord-toggle label, .ignore-chars-toggle label, .search-mode-toggle label) {
+    flex: 1;
+    text-align: center;
+  }
+  .popup-content {
+    margin: var(--space);
+    padding: calc(var(--space) * 2);
+  }
+  .manual-coord-input { inline-size: 100% }
+  .search-row { flex-direction: row !important }
+}
+
+/* анимации */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px) }
+  to   { opacity: 1; transform: translateY(0) }
+}
+.loading-spinner {
+  display: inline-block;
+  inline-size: 20px;
+  block-size: 20px;
+  border: 2px solid var(--btn);
+  border-top-color: var(--fg);
+  border-radius: 50%;
+  animation: 1s linear infinite spin;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* скроллбары (не критично; поддержка разная у движков) */
+:where(.output-list, .popup-content)::-webkit-scrollbar { inline-size: 8px }
+:where(.output-list, .popup-content)::-webkit-scrollbar-track {
+  background: var(--btn);
+  border-radius: 4px;
+}
+:where(.output-list, .popup-content)::-webkit-scrollbar-thumb {
+  background: var(--fg);
+  opacity: .3; /* визуально “легче” */
+  border-radius: 4px;
+}
+/* Firefox */
+:where(.output-list, .popup-content){ scrollbar-width: thin; scrollbar-color: color-mix(in srgb, currentColor 30%, transparent) var(--btn) }

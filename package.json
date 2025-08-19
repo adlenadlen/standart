@@ -1,0 +1,13 @@
+{
+  "name": "standart1-kz",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "lightningcss": "^1.25.0"
+  }
+}

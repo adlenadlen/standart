@@ -11,7 +11,7 @@ const CONFIG = {
   // не обязательно, но удобно хранить тут же:
   links: {
     // страница "Просмотр таблицы" для этого же объекта (если нужна)
-    sheetView: 'https://docs.google.com/spreadsheets/d/1uCHgrixqpe1wCWfZ9G1OMf-l57Zz5GQsVIxVlQoHRnY/edit?usp=sharing
+    sheetView: 'https://docs.google.com/spreadsheets/d/1uCHgrixqpe1wCWfZ9G1OMf-l57Zz5GQsVIxVlQoHRnY/edit?usp=sharing'
   }
 };
 

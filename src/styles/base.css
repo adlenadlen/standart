@@ -109,7 +109,7 @@ section>h2{
   text-align:start;
   font:600 1.2rem/1 var(--primary-font);
   padding: calc(var(--space)*1.5) calc(var(--space)*2);
-  border-radius:20px;
+  border-radius:24px;
   cursor:pointer;
   border:0;
   color:var(--fg);

@@ -1,136 +1,136 @@
-// modules/dataManager.js - Модуль управления данными с GitHub источником
+// modules/dataManager.js
 export class DataManager {
-    constructor() {
-        // Используем raw.githubusercontent.com для прямого доступа к файлу
-        this.githubUrl = 'https://raw.githubusercontent.com/adlenadlen/psmgeo/main/70/gro/data/rp70.csv';
-        
-        // Альтернативные URL на случай проблем
-        this.fallbackUrls = [
-            'https://adlenadlen.github.io/psmgeo/70/gro/data/rp70.csv', // GitHub Pages
-            'https://docs.google.com/spreadsheets/d/e/2PACX-1vTa3l-bUfZwy3iCNzVKmawZ_dApKSqMm6yuddAzP3eIkLp5m7zuHydF2UdSkUxKwW0CntEv6EBCxFf7/pub?gid=1125461087&single=true&output=csv' // Google Sheets
-        ];
-        
-        this.columnIndices = {
-            CoordSystem: 0,
-            Point: 1,
-            Xraw: 2,
-            Yraw: 3,
-            H: 4,
-            Info: 5
-        };
+  constructor() {
+    this.csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0xN6ovbBTM2VPZ5rVliXcFiMz13AJunM83sVSnGfn1Rt-5l3DulZ54jzKBVUF8zFmdK_CKEIGCnF4/pub?gid=0&single=true&output=csv';
+    this.COORD_SYSTEM = 'МСК';
+
+    // Русские заголовки
+    this.rusHeaders = ['Название', 'Север', 'Восток', 'Отметка', 'Код'];
+
+    // ✅ Исправлено: Север -> Xraw, Восток -> Yraw
+    this.headerMap = {
+      'Название': 'Point',
+      'Север': 'Xraw',   // Northing -> X
+      'Восток': 'Yraw',  // Easting  -> Y
+      'Отметка': 'H',
+      'Код': 'Info'
+    };
+  }
+
+  async fetchData() {
+    console.log(`Загрузка CSV из Google Sheets: ${this.csvUrl}`);
+    const csvText = await this.fetchWithTimeout(this.csvUrl, { timeoutMs: 15000 });
+    return this.parseCSV(csvText);
+  }
+
+  async fetchWithTimeout(url, { timeoutMs = 10000 } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
+    try {
+      const resp = await fetch(url, {
+        headers: { 'Accept': 'text/csv' },
+        cache: 'no-store',
+        signal: controller.signal
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buf = await resp.arrayBuffer();
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
+      return text.replace(/^\uFEFF/, '');
+    } finally {
+      clearTimeout(timer);
     }
-    
-    async fetchData() {
-        // Сначала пробуем основной GitHub URL
-        try {
-            console.log('Загрузка данных из GitHub...');
-            const response = await fetch(this.githubUrl, {
-                headers: {
-                    'Accept': 'text/csv'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
-            const csvText = await response.text();
-            console.log('Данные успешно загружены из GitHub');
-            return this.parseCSV(csvText);
-            
-        } catch (error) {
-            console.warn('Ошибка загрузки из основного источника:', error.message);
-            
-            // Пробуем альтернативные источники
-            for (let i = 0; i < this.fallbackUrls.length; i++) {
-                try {
-                    console.log(`Попытка загрузки из резервного источника ${i + 1}...`);
-                    const response = await fetch(this.fallbackUrls[i]);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    
-                    const csvText = await response.text();
-                    console.log(`Данные успешно загружены из резервного источника ${i + 1}`);
-                    return this.parseCSV(csvText);
-                    
-                } catch (fallbackError) {
-                    console.warn(`Резервный источник ${i + 1} недоступен:`, fallbackError.message);
-                }
-            }
-            
-            throw new Error('Не удалось загрузить данные из всех источников');
+  }
+
+  parseCSV(csvText) {
+    const lines = csvText.replace(/\r\n?/g, '\n').split('\n').map(l => l.trim());
+    while (lines.length && !lines[0]) lines.shift();
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    if (lines.length === 0) return [];
+
+    const rawHeader = lines[0];
+    const delimiter = this.detectDelimiter(rawHeader);
+    const headerParts = this.parseCSVLine(rawHeader, delimiter).map(s => s.trim());
+    const headerIndex = new Map(headerParts.map((name, idx) => [name, idx]));
+    const hasRusHeader = this.rusHeaders.every(h => headerIndex.has(h));
+    if (!hasRusHeader) console.warn('Предупреждение: заголовки отличаются от ожидаемых', { headerParts });
+
+    const records = [];
+    for (let i = 1; i < lines.length; i++) {
+      const raw = lines[i];
+      if (!raw) continue;
+
+      const parts = this.parseCSVLine(raw, delimiter);
+      const getByRu = (ruName) => {
+        const idx = headerIndex.get(ruName);
+        return idx != null ? (parts[idx] ?? '') : '';
+      };
+
+      const Point = String(getByRu('Название')).trim();
+
+      // ✅ Исправлено: берём X из "Север", Y из "Восток"
+      const xStr = String(getByRu('Север')).replace(',', '.').trim();   // X
+      const yStr = String(getByRu('Восток')).replace(',', '.').trim();  // Y
+      const hStr = String(getByRu('Отметка')).replace(',', '.').trim();
+      const Info = String(getByRu('Код')).trim();
+
+      const Xraw = Number.parseFloat(xStr);
+      const Yraw = Number.parseFloat(yStr);
+      const H    = hStr === '' ? NaN : Number.parseFloat(hStr);
+
+      if (!Number.isFinite(Xraw) || !Number.isFinite(Yraw)) {
+        console.warn(`Строка ${i + 1}: пропуск из-за некорректных координат`, { xStr, yStr });
+        continue;
+      }
+
+      records.push({
+        id: `rp_${i + 1}`,
+        fields: {
+          CoordSystem: this.COORD_SYSTEM,
+          Point,
+          Xraw,
+          Yraw,
+          H: Number.isFinite(H) ? H : NaN,
+          Info
         }
+      });
     }
-    
-    parseCSV(csvText) {
-        const lines = csvText.trim().split('\n');
-        const records = [];
-        
-        // Пропускаем заголовок, если он есть
-        const startIndex = lines[0].includes('CoordSystem') || lines[0].includes('IZP') ? 0 : 1;
-        
-        for (let i = startIndex; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            
-            const parts = this.parseCSVLine(line);
-            
-            // Проверяем, что у нас достаточно полей
-            if (parts.length >= 5) {
-                // Обрабатываем случай, когда Info может отсутствовать
-                const info = parts.length > 5 ? parts[5]?.trim() : '';
-                
-                records.push({
-                    id: `rp_${i + 1}`,
-                    fields: {
-                        CoordSystem: parts[0]?.trim().toUpperCase() || 'UNKNOWN',
-                        Point: parts[1]?.trim() || '',
-                        Xraw: parseFloat(parts[2]) || NaN,
-                        Yraw: parseFloat(parts[3]) || NaN,
-                        H: parseFloat(parts[4]) || NaN,
-                        Info: info
-                    }
-                });
-            }
-        }
-        
-        console.log(`Обработано записей: ${records.length}`);
-        return records;
+
+    console.log(`Обработано записей: ${records.length}`);
+    return records;
+  }
+
+  detectDelimiter(headerLine) {
+    const comma = (headerLine.match(/,/g) || []).length;
+    const semi  = (headerLine.match(/;/g) || []).length;
+    return semi > comma ? ';' : ',';
+  }
+
+  parseCSVLine(line, delimiter = ',') {
+    const out = [];
+    let cur = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (ch === delimiter && !inQuotes) {
+        out.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
     }
-    
-    parseCSVLine(line) {
-        const parts = [];
-        let current = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                parts.push(current);
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        
-        parts.push(current);
-        return parts;
+    out.push(cur);
+    return out;
+  }
+
+  getCoordinateSystemStats(records) {
+    const stats = {};
+    for (const r of records) {
+      const key = r.fields.CoordSystem || 'UNKNOWN';
+      stats[key] = (stats[key] || 0) + 1;
     }
-    
-    // Метод для получения статистики по системам координат
-    getCoordinateSystemStats(records) {
-        const stats = {};
-        
-        records.forEach(record => {
-            const system = record.fields.CoordSystem;
-            stats[system] = (stats[system] || 0) + 1;
-        });
-        
-        return stats;
-    }
+    return stats;
+  }
 }

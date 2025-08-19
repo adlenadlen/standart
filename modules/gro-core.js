@@ -331,6 +331,11 @@ class UIController {
     this.elements = {};
     this.debounceTimer = null;
     this.popupHistory = [];
+
+    // привязываем колбэки один раз
+    this.onOverlayClick = this.onOverlayClick.bind(this);
+    this.onKeyDown = this.onKeyDown.bind(this);
+    this.popupEventsBound = false;
   }
 
   init() {
@@ -339,7 +344,6 @@ class UIController {
   }
 
   _createElements() {
-    // Рендерим только поиск
     const searchControls = document.getElementById('searchControls');
     searchControls.innerHTML = `
       <div class="control-row">
@@ -366,7 +370,7 @@ class UIController {
       </div>
     `;
 
-    // Полностью скрываем нижний калькулятор, если он есть в DOM
+    // спрячем секцию с конвертацией, если она есть в html
     const convSection = document.querySelector('.conversion-section');
     if (convSection) convSection.style.display = 'none';
 
@@ -376,6 +380,13 @@ class UIController {
       messageState: document.getElementById('messageState'),
       nearbyPopup: document.getElementById('nearbyPopup')
     };
+
+    // навешиваем обработчики на оверлей/клаву один раз
+    if (!this.popupEventsBound) {
+      this.elements.nearbyPopup.addEventListener('click', this.onOverlayClick);
+      document.addEventListener('keydown', this.onKeyDown);
+      this.popupEventsBound = true;
+    }
   }
 
   _bindEvents() {
@@ -419,8 +430,34 @@ class UIController {
       if (!row) return;
       const id = row.dataset.recordId;
       const rec = this.app.state.fullDatabase.find(r => r.id === id);
-      if (rec) this.showPointDetails(rec);
+      if (rec) this.showPointDetails(rec, /*resetHistory=*/true);
     });
+  }
+
+  // единый обработчик кликов для оверлея
+  onOverlayClick(e) {
+    const overlay = this.elements.nearbyPopup;
+    const target = e.target;
+
+    if (target === overlay || target.classList.contains('popup-close-btn')) {
+      this.closePopup();
+      return;
+    }
+    if (target.classList.contains('popup-back-btn')) {
+      this.goBack();
+      return;
+    }
+    // остальные клики внутри — игнор
+  }
+
+  onKeyDown(e) {
+    if (e.key === 'Escape' && this.isPopupOpen()) {
+      this.closePopup();
+    }
+  }
+
+  isPopupOpen() {
+    return this.elements.nearbyPopup && this.elements.nearbyPopup.style.display === 'flex';
   }
 
   displayRecords(records) {
@@ -504,11 +541,11 @@ class UIController {
     return wrap;
   }
 
-  async showPointDetails(record, addToHistory = true) {
-    if (addToHistory) this.popupHistory = [];
+  async showPointDetails(record, resetHistory = false) {
+    if (resetHistory) this.popupHistory = []; // новая ветка истории
 
     const f = record.fields;
-    const popup = document.getElementById('nearbyPopup');
+    const popup = this.elements.nearbyPopup;
 
     const box = document.createElement('div');
     box.className = 'popup-content';
@@ -542,7 +579,6 @@ class UIController {
       header.appendChild(subtitle);
     }
 
-    // Без приписки "MSK"
     const coordsDiv = document.createElement('div');
     coordsDiv.className = 'popup-coordinates';
     coordsDiv.innerHTML = `
@@ -570,8 +606,7 @@ class UIController {
     popup.appendChild(box);
     popup.style.display = 'flex';
 
-    if (addToHistory) this.popupHistory.push(record);
-
+    // список ближайших
     const list = nearWrap.querySelector('.nearby-list');
     const nearby = await this.app.searchEngine.findNearby(this.app.state.fullDatabase, record, 300);
     if (!nearby.length) {
@@ -584,24 +619,17 @@ class UIController {
         const el = this._createRecordElement(item.record, true, item.distance);
         el.addEventListener('click', (e) => {
           if (e.target.classList.contains('map-link')) return;
-          this.popupHistory.push(record);
-          this.showPointDetails(item.record, false);
+          // кладём в историю текущую запись
+          this.popupHistory.push({ type: 'record', record });
+          this.showPointDetails(item.record, /*resetHistory=*/false);
         });
         list.appendChild(el);
       }
     }
-
-    // Закрытие/назад
-    const onClick = (e) => {
-      if (e.target === popup || e.target.classList.contains('popup-close-btn')) this.closePopup();
-      else if (e.target.classList.contains('popup-back-btn')) this.goBack();
-    };
-    popup.addEventListener('click', onClick, { once: true });
   }
 
-  // НОВОЕ: попап геолокации (исправляет ошибку "не является функцией")
-  showNearbyLocationPopup(result /* { userCoords:{x,y}, points:[{record,distance,coords}] } */) {
-    const popup = document.getElementById('nearbyPopup');
+  showNearbyLocationPopup(result /* { userCoords:{x,y}, points:[...] } */) {
+    const popup = this.elements.nearbyPopup;
 
     const box = document.createElement('div');
     box.className = 'popup-content';
@@ -620,7 +648,6 @@ class UIController {
     title.textContent = 'Геолокация';
     header.appendChild(title);
 
-    // Без приписки "MSK"
     const coordsDiv = document.createElement('div');
     coordsDiv.className = 'popup-coordinates';
     coordsDiv.innerHTML = `
@@ -648,7 +675,9 @@ class UIController {
         const el = this._createRecordElement(item.record, true, item.distance);
         el.addEventListener('click', (e) => {
           if (e.target.classList.contains('map-link')) return;
-          this.showPointDetails(item.record);
+          // кладём в историю "снимок геолокации"
+          this.popupHistory.push({ type: 'location', data: result });
+          this.showPointDetails(item.record, /*resetHistory=*/false);
         });
         list.appendChild(el);
       }
@@ -657,24 +686,23 @@ class UIController {
     popup.innerHTML = '';
     popup.appendChild(box);
     popup.style.display = 'flex';
-    this.popupHistory = [];
-
-    // закрытие
-    const onClick = (e) => {
-      if (e.target === popup || e.target.classList.contains('popup-close-btn')) this.closePopup();
-    };
-    popup.addEventListener('click', onClick, { once: true });
   }
 
   goBack() {
-    if (!this.popupHistory.length) return;
     const prev = this.popupHistory.pop();
-    this.showPointDetails(prev, false);
+    if (!prev) return;
+    if (prev.type === 'record') {
+      this.showPointDetails(prev.record, /*resetHistory=*/false);
+    } else if (prev.type === 'location') {
+      this.showNearbyLocationPopup(prev.data);
+    }
   }
 
   closePopup() {
-    document.getElementById('nearbyPopup').style.display = 'none';
+    this.elements.nearbyPopup.style.display = 'none';
     this.popupHistory = [];
+    // содержимое очищать не обязательно, но можно:
+    // this.elements.nearbyPopup.innerHTML = '';
   }
 
   _fmt(v, digits = 3) {

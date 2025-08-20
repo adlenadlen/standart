@@ -16,15 +16,12 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Turf для буфера из линии -->
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 
 <script>
 (async () => {
-  // 1) ССЫЛКА НА ТВОЙ ФАЙЛ
   const RAW_URL = "https://raw.githubusercontent.com/adlenadlen/standart/main/src/balkhash/line/map.geojson";
 
-  // 2) Инициализация карты
   const map = L.map('map', { preferCanvas: true });
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -34,12 +31,10 @@
   map.createPane('mask');  map.getPane('mask').classList.add('mask-pane');
   map.createPane('data');  map.getPane('data').classList.add('data-pane');
 
-  // 3) Загружаем GeoJSON (LineString/MultiLineString)
   const resp = await fetch(RAW_URL, { headers: { "Accept": "application/json" }});
   if (!resp.ok) throw new Error("Не удалось загрузить GeoJSON");
   const lineGeoJSON = await resp.json();
 
-  // 4) Рисуем саму линию (тонкая голубая)
   const lineLayer = L.geoJSON(lineGeoJSON, {
     style: { color: "#3b82f6", weight: 3 }
   }).addTo(map);
@@ -50,29 +45,59 @@
     map.setMaxBounds(bounds.pad(0.7));
   }
 
-  // 5) Строим ПОЛИГОНАЛЬНУЮ МАСКУ вокруг линии
-  // Ширина коридора (по 250 м в каждую сторону). Поставь своё значение.
   const BUFFER_METERS = 250;
-
-  // Нормализуем к FeatureCollection
   const fc = lineGeoJSON.type === "FeatureCollection"
     ? lineGeoJSON
     : { type: "FeatureCollection", features: [lineGeoJSON] };
-
-  // Делаем буфер + объединяем (на случай множественных линий)
   const buffered = turf.buffer(fc, BUFFER_METERS, { units: "meters" });
-  const dissolved = turf.dissolve(buffered); // один многоугольник
+  const dissolved = turf.dissolve(buffered);
 
-  // Отрисуем границы буфера поверх (для контроля)
   L.geoJSON(dissolved, {
     style: { color: "#22c55e", weight: 1, fill: false },
     pane: 'data'
   }).addTo(map);
 
-  // 6) SVG-маска: тайлы видны только внутри буфера
   const svg = L.svg({ pane: 'mask' }).addTo(map);
   const svgRoot = svg._root;
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('class', 'mask-fill');
   path.setAttribute('fill-rule', 'evenodd');
-  svgRoot.appendChild(p
+  svgRoot.appendChild(path);
+
+  function ringsFromPoly(f) {
+    const g = f.geometry;
+    if (!g) return [];
+    if (g.type === 'Polygon') return g.coordinates;
+    if (g.type === 'MultiPolygon') return g.coordinates.flat();
+    return [];
+  }
+
+  function rebuildMaskPath() {
+    if (!bounds.isValid()) return;
+    const size = map.getSize();
+    const tl = map.containerPointToLayerPoint([0, 0]);
+    const br = map.containerPointToLayerPoint([size.x, size.y]);
+    let d = `M ${tl.x} ${tl.y} L ${br.x} ${tl.y} L ${br.x} ${br.y} L ${tl.x} ${br.y} Z `;
+    const features = dissolved.type === 'FeatureCollection'
+      ? dissolved.features
+      : [dissolved];
+    for (const f of features) {
+      for (const ring of ringsFromPoly(f)) {
+        const p0 = map.latLngToLayerPoint([ring[0][1], ring[0][0]]);
+        d += `M ${p0.x} ${p0.y} `;
+        for (let i = 1; i < ring.length; i++) {
+          const p = map.latLngToLayerPoint([ring[i][1], ring[i][0]]);
+          d += `L ${p.x} ${p.y} `;
+        }
+        d += 'Z ';
+      }
+    }
+    path.setAttribute('d', d);
+  }
+
+  map.on('zoom viewreset move', rebuildMaskPath);
+  rebuildMaskPath();
+})();
+</script>
+</body>
+</html>

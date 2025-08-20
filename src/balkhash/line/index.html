@@ -49,9 +49,8 @@
     }).setView([48, 68], 5);
 
     const canvasRenderer = L.canvas({ padding: 0.5 });
-
     // Будущий слой тайлов OSM — добавим ПОСЛЕ вычисления границ данных
-    let osmTiles = null;
+    let osmTiles = null; // будет ограничен рамкой данных и не будет грузить/рисовать тайлы вне её
 
     // Кнопки управления: «Местоположение» и «Показать до границы»
     let userMarker = null, accuracyCircle = null, didInitialUserCenter = false;
@@ -209,21 +208,52 @@
         console.error('GeoJSON load error:', e);
       }
     }
+    // Кастомный тайл-слой, который пропускает (не загружает и не рисует) тайлы вне заданной рамки
+    const BoundedTileLayer = L.TileLayer.extend({
+      initialize: function(url, options){
+        L.TileLayer.prototype.initialize.call(this, url, options);
+        this._clipLatLngBounds = options.clipLatLngBounds || null;
+      },
+      _addTile: function(coords, container){
+        if (this._clipLatLngBounds) {
+          const tb = this._tileCoordsToBounds(coords);
+          if (!this._clipLatLngBounds.intersects(tb)) return; // пропускаем тайл полностью
+        }
+        return L.TileLayer.prototype._addTile.call(this, coords, container);
+      }
+    });
+
+    let outsideMask = null;
+    function drawOutsideMask(){
+      if (!dataBounds || !dataBounds.isValid()) return;
+      if (outsideMask) { map.removeLayer(outsideMask); outsideMask = null; }
+      const sw = dataBounds.getSouthWest();
+      const ne = dataBounds.getNorthEast();
+      const nw = L.latLng(ne.lat, sw.lng);
+      const se = L.latLng(sw.lat, ne.lng);
+      // «Мировой» прямоугольник с дыркой по рамке данных — визуально скрывает тайлы снаружи
+      const world = [[-89.999, -360.0], [-89.999, 360.0], [89.999, 360.0], [89.999, -360.0]];
+      const hole = [ [sw.lat, sw.lng], [nw.lat, nw.lng], [ne.lat, ne.lng], [se.lat, se.lng] ];
+      outsideMask = L.polygon([world, hole], { stroke:false, fill:true, fillOpacity:1, fillColor:'#f2f5f8', interactive:false }).addTo(map);
+    }
 
     function ensureOSMWithinDataBounds(){
       if (osmTiles || !dataBounds || !dataBounds.isValid()) return;
       const padded = dataBounds.pad(0.15); // небольшой отступ
       map.setMaxBounds(padded);
 
-      // Подгружаем тайлы только вокруг данных. Leaflet сам не грузит «далеко» от видимой области,
-      // а maxBounds не даст «убежать» от района. Это и есть «частичная карта».
-      osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // Подключаем OSM, но с ЖЁСТКИМ ограничением загрузки по рамке данных
+      osmTiles = new BoundedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         noWrap: true,
         crossOrigin: true,
         updateWhenIdle: true,
-        keepBuffer: 1
+        keepBuffer: 1,
+        clipLatLngBounds: dataBounds // ключ: тайлы вне этой рамки вообще не создаются
       }).addTo(map);
+
+      // Визуально «обрубаем» область вне рамки (фон вместо карты)
+      drawOutsideMask();
     }
 
     // Старт
